@@ -6,7 +6,7 @@ Centralized Cursor rules, agents, and commands for backend/CDK/Lambda projects. 
 
 - **rules/** — `.mdc` rule files (git-workflow, verify-first, backend-conventions, cdk-conventions, test-harness, cli-rc-testing)
 - **skills/** — Agent skills (e.g. cli-rc-testing: publish and consume npm CLI release candidates for manual testing)
-- **agents/** — `.md` agent definitions (add-lambda, implement-endpoint, refactor, quality-assurance, etc.)
+- **agents/** — `.md` agent definitions (add-lambda, cli-rc-testing, implement-endpoint, refactor, quality-assurance, etc.)
 - **commands/** — `.md` command definitions (commit, pr, cw-logs, check-stacks, flag-toggle, test-feature, gh-logs, slack)
 
 All content on **main** is generic so it applies across projects. Project-specific content (project-overview.mdc, AGENTS.md, project-only commands) lives on **project branches**.

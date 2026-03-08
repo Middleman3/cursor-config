@@ -1,34 +1,11 @@
 ---
-description: CLI release-candidate workflow for local manual testing — version, publish with tag, consume from npm
+description: When changing or validating CLI functionality, use the cli-rc-testing agent to publish an RC and verify in the consumer.
 globs:
 alwaysApply: true
 ---
 
-# CLI Release Candidate Testing
+# CLI changes and validation
 
-Use this workflow to test CLI changes manually by publishing a release candidate (RC) to npm and installing it in a consumer repo.
+When you **change or validate CLI functionality** (especially when the CLI is consumed by another repo), **always use the cli-rc-testing subagent**. Do not complete the task by suggesting the user "publish an RC and try it"—invoke the agent so it publishes the RC and verifies in the consumer (bump → build → publish → update consumer → `mise install` + consumer command → confirm output) before you mark the work done.
 
-## Versioning
-
-- Bump the CLI package to a **prerelease** version, e.g. patch RC: `x.y.(z+1)-rc.0` (e.g. `0.2.2-rc.0`).
-- Do not publish as `latest`; use a dist-tag so production installs are unchanged.
-
-## Publishing the RC (from the CLI repo)
-
-1. Update `version` in the CLI's `package.json` to the RC version.
-2. Build the CLI (and any workspace dependencies it needs). For TypeScript monorepos, build dependency packages first (e.g. core), then the CLI; clear stale `tsconfig.tsbuildinfo` if builds report "up to date" but `dist/` is missing.
-3. From the repo root:  
-   `npm publish --workspace=<package-name> --tag rc --access public`  
-   Authenticate via AWS Secrets Manager (e.g. secret `devops`: write `.npmrc.publish` with `//registry.npmjs.org/:_authToken=<NPM_TOKEN from secret>`, then `npm publish ... --userconfig .npmrc.publish` and delete the file), or `npm login`.
-4. The `rc` dist-tag means installs use `npm install <pkg>@rc` or an exact version like `0.2.2-rc.0`; `latest` stays on the previous stable.
-
-## Consuming the RC (in the consumer repo)
-
-1. Install the RC via the tooling the project uses (e.g. **mise**): in `.mise.toml` set the CLI to the exact RC version (e.g. `"npm:@scope/cli" = "0.2.2-rc.0"`) or to the `rc` tag for "latest RC."
-2. Run the project's install (e.g. `mise install`).
-3. Run the CLI (e.g. `mise run validate` or `mise exec -- waypoint validate --local`) to confirm behavior.
-
-## Conventions
-
-- Prefer **exact RC version** in the consumer (e.g. `0.2.2-rc.0`) during active testing so results are reproducible; switch to `latest` or a stable version after promoting the release.
-- Do not commit secrets (e.g. `NPM_TOKEN`) to the repo; use AWS Secrets Manager (e.g. `devops`), `npm login`, or CI secrets for publish.
+**Publish auth:** NPM_TOKEN is in AWS Secrets Manager secret `devops`. Write `.npmrc.publish` with `//registry.npmjs.org/:_authToken=<token>`, run `npm publish ... --userconfig .npmrc.publish`. Add `.npmrc.publish` to `.gitignore` and leave it locally; no need to delete after publish. See `skills/cli-rc-testing/SKILL.md` for the one-liner.
