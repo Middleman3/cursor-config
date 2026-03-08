@@ -1,0 +1,67 @@
+---
+description: Test harness architecture and conventions — Godog/Cucumber BDD, Lambda and API paradigms, feature files, tags
+globs:
+  - "tests/**/*.go"
+  - "tests/**/*.feature"
+---
+
+# Test Harness
+
+## Framework
+
+Godog/Cucumber BDD. Entry point is typically `tests/feature_test.go` with `InitializeSuite` and `InitializeScenario`. Refer to the project's test layout for exact paths.
+
+## Two Test Paradigms
+
+- **Lambda tests** (e.g. `tests/lambda/`): `DataConditioner` interface — key, function name, payload, expected response, optional attribute extraction. Invoked via AWS SDK `Lambda.Invoke` or Function URL request shape.
+- **API tests** (e.g. `tests/api/`): `ApiDataConditioner` interface — key, build HTTP request, expected response (status, headers, body). Real HTTP requests to API Gateway or Function URL endpoints.
+
+## Key Concepts
+
+- **Suite**: Initializes step definitions and conditioner maps keyed by slug. Conditioner keys are project-specific; see the project's `tests/suite.go`.
+- **Environment**: TestEnvironment detects local vs CI, loads AWS config, fetches secrets. Accessor methods satisfy `lambda.Env` and `api.Env` interfaces. API base URLs and keys come from env.
+- **Logger**: Structured format for step output (e.g. `<time> | <pkg/file>#L<line> | <level> | message`).
+
+## Tag Philosophy
+
+- Default object (no tags) = happy path. Tags only apply deviations.
+- Noun-like tags (e.g. `no_key`, `invalid_apikey`) appended via `with <extra_tags>`.
+- Action tags (e.g. `preview`, `page_updated`) go in leading position.
+
+## Feature File Conventions
+
+- Always written from the customer's perspective, never the developer's.
+- `@happy` for happy path scenarios, `@negative` for error/edge cases.
+- No "happy" tag in step text — absence of tags is the happy path.
+- Leading tag requirement: API step patterns often require at least one leading tag before the conditioner key so the step regex matches. Use an action or event-type tag in leading position when needed.
+
+## Lambda Step Patterns
+
+- `Given a [tags] <conditioner_key> lambda request [with <extra>]`
+- `When I send the lambda request`
+- `Then there is a successful lambda response` / `Then the lambda response has status <N>`
+
+## API Step Patterns
+
+- `Given a [tags] <conditioner_key> api request [with <extra>]`
+- `When I send the api request`
+- `Then there is a <status> api response`
+
+## Feature Flags
+
+Every feature gated by a feature flag must have a flag-off scenario returning the appropriate disabled response. Infrastructure-only endpoints (e.g. webhook ingress) without feature flags do not require flag-off scenarios.
+
+## DataConditioner (Lambda)
+
+- `Key()`, `FunctionName()`, `Payload(tags)`, `ExpectedResponse(tags)`, `ExtractAttributes(responseBody)`.
+- Function URL conditioners build request structs with version, rawPath, headers, requestContext, body. Response: statusCode, headers, body.
+- One-directional JSON match: every key in expected must exist in actual with matching value; omitted keys are not checked.
+
+## ApiDataConditioner (API)
+
+- `Key()`, `BuildRequest(tags)`, `ExpectedResponse(tags)` returning status, optional headers, optional body (nil = don't check).
+- HTTP client often configured so redirects are not followed (e.g. `CheckRedirect` returns `http.ErrUseLastResponse`) for asserting 3xx.
+
+## Execution
+
+Feature tests typically run against a deployed staging environment. Use the project's command (e.g. `mise run test-features`).
