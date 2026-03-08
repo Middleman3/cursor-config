@@ -16,11 +16,18 @@ Workflow for testing CLI changes manually: publish an RC to npm under a dist-tag
 
 1. **Version**: Set the CLI's `package.json` `version` to a prerelease, e.g. patch RC: `0.2.2-rc.0`.
 2. **Build**: Build any workspace dependencies first (e.g. `@scope/core`), then the CLI. If `tsc` reports "up to date" but `dist/` is missing, remove `tsconfig.tsbuildinfo` in the dependency package and run `tsc -b` again.
-3. **Publish**:
-   ```bash
-   npm publish --workspace=@scope/cli --tag rc --access public
-   ```
-   User must be logged in (`npm login`) first.
+3. **Publish** (auth via one of):
+   - **AWS Secrets Manager**: If the account has a secret (e.g. `devops`) with JSON `{"NPM_TOKEN":"..."}`, write a temporary `.npmrc` and publish with it (then delete the file):
+     ```bash
+     aws secretsmanager get-secret-value --secret-id devops --query SecretString --output text | node -e "
+     const s=JSON.parse(require('fs').readFileSync(0,'utf8'));
+     require('fs').writeFileSync('.npmrc.publish','//registry.npmjs.org/:_authToken='+s.NPM_TOKEN+'\n');
+     "
+     npm publish --workspace=@scope/cli --tag rc --access public --userconfig .npmrc.publish
+     rm -f .npmrc.publish
+     ```
+     (Use `jq -r .NPM_TOKEN` instead of the node one-liner if jq is available.)
+   - **Local**: Run `npm login` first, then the same `npm publish` command (no `--userconfig`).
 4. Result: the version is on the `rc` dist-tag; `latest` is unchanged.
 
 ## 2. Consume the RC (consumer repo)
@@ -39,5 +46,5 @@ Workflow for testing CLI changes manually: publish an RC to npm under a dist-tag
 ## Conventions
 
 - Use exact RC version (e.g. `0.2.2-rc.0`) in the consumer for reproducible manual testing.
-- Do not commit npm auth tokens; use `npm login` or CI secrets for publish.
+- Do not commit npm auth tokens; use AWS Secrets Manager (e.g. secret `devops` with `NPM_TOKEN`), `npm login`, or CI secrets for publish.
 - Align with the project rule `.cursor/rules/cli-rc-testing.mdc` when present.
