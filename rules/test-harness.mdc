@@ -7,6 +7,8 @@ globs:
 
 # Test Harness
 
+**Framework package**: Step definitions (Lambda, API), environment init, logger, and scenario hooks are provided by the [test-harness](https://github.com/Middleman3/test-harness) Go package. Consumer repos add `github.com/Middleman3/test-harness` and use `env.InitEnvironment`, `lambda.NewSteps`, `api.NewSteps`, `hooks.RegisterScenarioHooks`; **data conditioners** and **feature files** stay in the consumer repo. For private use set `GOPRIVATE=github.com/Middleman3/*` and configure Git auth.
+
 ## Goals
 
 - **Single pattern**: One consistent approach for automating feature tests against deployed or local resources (Lambda, API, SQS, DynamoDB, etc.).
@@ -15,13 +17,13 @@ globs:
 
 ## Layout
 
-- **Feature files** live under `tests/features/` and describe behaviour in Gherkin (Given/When/Then). One per domain or component.
-- **Step packages** (e.g. `tests/lambda/`, `tests/api/`, future `tests/sqs/`, `tests/dynamodb/`) own step definitions and component-specific conditioners that provide test data and expectations.
-- **TestEnvironment** holds AWS config and the current **environment name** (e.g. `staging`), inferred from env vars. All conditioners receive the full TestEnvironment so they can build resource names and access config.
+- **Feature files** live under `tests/features/` (in the consumer repo) and describe behaviour in Gherkin (Given/When/Then). One per domain or component.
+- **test-harness** (imported): provides `env` (BaseEnvironment, InitEnvironment), `logger`, `lambda` (Steps, DataConditioner), `api` (Steps, DataConditioner), `hooks` (RegisterScenarioHooks). Lambda/API **step definitions** live in the package; conditioners are implemented in the consumer.
+- **Consumer repo** keeps: **data conditioners** (e.g. `tests/lambda/audience-service.go`, `tests/api/creative_api.go`) that implement `lambda.DataConditioner` / `api.DataConditioner`, and a **TestEnvironment** that embeds `env.BaseEnvironment` and adds secrets/URLs and `FetchSecrets`.
 - **Resource names** are defined once (e.g. in `internal/names/`) and used by both infra (CDK) and tests. Full names are typically `baseName + "-" + environment` (e.g. `my-service-staging`).
-- **Entry point**: `tests/feature_test.go` with `InitializeSuite` and `InitializeScenario`. **Suite wiring**: `tests/suite.go` builds TestEnvironment, creates AWS/HTTP clients, builds conditioners, registers steps.
+- **Entry point**: `tests/feature_test.go` with `InitializeSuite` and `InitializeScenario`. **Suite wiring**: `tests/suite.go` calls `env.InitEnvironment`, builds TestEnvironment and fetches secrets, creates clients and conditioners, then `lambda.NewSteps`, `api.NewSteps`, `hooks.RegisterScenarioHooks`, and each `RegisterSteps(ctx)`.
 
-Refer to the project's test layout for exact paths and package names.
+Refer to the project's test layout and to [test-harness README](https://github.com/Middleman3/test-harness) for package usage.
 
 ## TestEnvironment
 
