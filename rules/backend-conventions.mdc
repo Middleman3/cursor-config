@@ -17,6 +17,7 @@ globs:
 
 - All client initialization in the service entrypoint (e.g. `main.go`), dependencies injected at the root (single composition root).
 - Shared packages live in `internal/`. Resource name constants in a central place (e.g. `internal/names/`).
+- Prefer private struct fields (lowercase); expose behavior via methods or constructors (e.g. `NewCreator`), not direct field access.
 
 ## Feature Flags
 
