@@ -1,0 +1,34 @@
+---
+description: CLI release-candidate workflow for local manual testing — version, publish with tag, consume from npm
+globs:
+alwaysApply: true
+---
+
+# CLI Release Candidate Testing
+
+Use this workflow to test CLI changes manually by publishing a release candidate (RC) to npm and installing it in a consumer repo.
+
+## Versioning
+
+- Bump the CLI package to a **prerelease** version, e.g. patch RC: `x.y.(z+1)-rc.0` (e.g. `0.2.2-rc.0`).
+- Do not publish as `latest`; use a dist-tag so production installs are unchanged.
+
+## Publishing the RC (from the CLI repo)
+
+1. Update `version` in the CLI's `package.json` to the RC version.
+2. Build the CLI (and any workspace dependencies it needs). For TypeScript monorepos, build dependency packages first (e.g. core), then the CLI; clear stale `tsconfig.tsbuildinfo` if builds report "up to date" but `dist/` is missing.
+3. From the repo root:  
+   `npm publish --workspace=<package-name> --tag rc --access public`  
+   (Requires `npm login` if not already authenticated.)
+4. The `rc` dist-tag means installs use `npm install <pkg>@rc` or an exact version like `0.2.2-rc.0`; `latest` stays on the previous stable.
+
+## Consuming the RC (in the consumer repo)
+
+1. Install the RC via the tooling the project uses (e.g. **mise**): in `.mise.toml` set the CLI to the exact RC version (e.g. `"npm:@scope/cli" = "0.2.2-rc.0"`) or to the `rc` tag for "latest RC."
+2. Run the project's install (e.g. `mise install`).
+3. Run the CLI (e.g. `mise run validate` or `mise exec -- waypoint validate --local`) to confirm behavior.
+
+## Conventions
+
+- Prefer **exact RC version** in the consumer (e.g. `0.2.2-rc.0`) during active testing so results are reproducible; switch to `latest` or a stable version after promoting the release.
+- Do not commit secrets (e.g. `NPM_TOKEN`, npm auth) to the repo; use `npm login` or CI secrets for publish.
