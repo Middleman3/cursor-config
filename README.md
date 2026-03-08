@@ -1,6 +1,6 @@
 # cursor-config
 
-Centralized Cursor rules, agents, and commands for backend/CDK/Lambda projects. Use as a **submodule** in each repo; point `.cursor` at the submodule so Cursor discovers everything.
+Centralized Cursor rules, agents, and commands for backend/CDK/Lambda projects. Use as a **submodule** at `.cursor` in each repo so Cursor discovers everything from that single location.
 
 ## Layout
 
@@ -20,13 +20,11 @@ All content on **main** is generic so it applies across projects. Project-specif
 
 ## Using in a repo
 
-1. Add as submodule on the project's branch:
-   ```bash
-   git submodule add -b <branch> https://github.com/<org>/cursor-config.git .cursor-shared
-   ```
-2. Expose to Cursor:
-   - **Symlink:** `ln -snf .cursor-shared .cursor`
-   - Or copy `.cursor-shared` → `.cursor` via a script or `mise` task
+Add the submodule at **`.cursor`** so Cursor discovers it directly (no symlink or second folder):
+
+```bash
+git submodule add -b <branch> https://github.com/<org>/cursor-config.git .cursor
+```
 
 After cloning a repo that uses this submodule: `git submodule update --init --remote`
 

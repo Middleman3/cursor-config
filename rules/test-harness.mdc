@@ -1,5 +1,5 @@
 ---
-description: Test harness architecture and conventions — Godog/Cucumber BDD, Lambda and API paradigms, feature files, tags
+description: Test harness architecture and conventions — Godog/Cucumber BDD, Lambda and API paradigms, feature files, tags, TestEnvironment, resource names, extending components
 globs:
   - "tests/**/*.go"
   - "tests/**/*.feature"
@@ -7,33 +7,70 @@ globs:
 
 # Test Harness
 
-## Framework
+## Goals
 
-Godog/Cucumber BDD. Entry point is typically `tests/feature_test.go` with `InitializeSuite` and `InitializeScenario`. Refer to the project's test layout for exact paths.
+- **Single pattern**: One consistent approach for automating feature tests against deployed or local resources (Lambda, API, SQS, DynamoDB, etc.).
+- **Environment-aware**: Resource names (functions, queues, tables, URLs) are built from shared constants plus environment (e.g. `staging`, `prod`), so the same test suite can target different deployments.
+- **Extensible**: Adding a new component (e.g. a new Lambda or queue) follows the same rules; no need to re-document the whole flow.
 
-## Two Test Paradigms
+## Layout
 
-- **Lambda tests** (e.g. `tests/lambda/`): `DataConditioner` interface — key, function name, payload, expected response, optional attribute extraction. Invoked via AWS SDK `Lambda.Invoke` or Function URL request shape.
-- **API tests** (e.g. `tests/api/`): `ApiDataConditioner` interface — key, build HTTP request, expected response (status, headers, body). Real HTTP requests to API Gateway or Function URL endpoints.
+- **Feature files** live under `tests/features/` and describe behaviour in Gherkin (Given/When/Then). One per domain or component.
+- **Step packages** (e.g. `tests/lambda/`, `tests/api/`, future `tests/sqs/`, `tests/dynamodb/`) own step definitions and component-specific conditioners that provide test data and expectations.
+- **TestEnvironment** holds AWS config and the current **environment name** (e.g. `staging`), inferred from env vars. All conditioners receive the full TestEnvironment so they can build resource names and access config.
+- **Resource names** are defined once (e.g. in `internal/names/`) and used by both infra (CDK) and tests. Full names are typically `baseName + "-" + environment` (e.g. `my-service-staging`).
+- **Entry point**: `tests/feature_test.go` with `InitializeSuite` and `InitializeScenario`. **Suite wiring**: `tests/suite.go` builds TestEnvironment, creates AWS/HTTP clients, builds conditioners, registers steps.
 
-## Key Concepts
+Refer to the project's test layout for exact paths and package names.
 
-- **Suite**: Initializes step definitions and conditioner maps keyed by slug. Conditioner keys are project-specific; see the project's `tests/suite.go`.
-- **Environment**: TestEnvironment detects local vs CI, loads AWS config, fetches secrets. Accessor methods satisfy `lambda.Env` and `api.Env` interfaces. API base URLs and keys come from env.
-- **Logger**: Structured format for step output (e.g. `<time> | <pkg/file>#L<line> | <level> | message`).
+## TestEnvironment
 
-## Tag Philosophy
+- **Role**: Single source of AWS config and environment name for the test run.
+- **Initialisation**: InitEnvironment (or equivalent) detects local vs CI (e.g. `GITHUB_ACTIONS=true` or AWS credential env vars) and loads config (local profile or OIDC/default chain). The **environment** (e.g. `staging`) is read from `ENVIRONMENT`; default is project-specific (often `staging`). Pass a non-nil logger; log which env path is used.
+- **Usage**: Passed into all DataConditioners and component setup so resource names and clients are consistent. Accessor methods satisfy component Env interfaces (e.g. `lambda.Env`, `api.Env`).
 
-- Default object (no tags) = happy path. Tags only apply deviations.
-- Noun-like tags (e.g. `no_key`, `invalid_apikey`) appended via `with <extra_tags>`.
-- Action tags (e.g. `preview`, `page_updated`) go in leading position.
+## Resource Names (shared with infra)
 
-## Feature File Conventions
+- **Role**: Single place for base resource names (no environment suffix). Both **infra** (CDK) and **tests** import the same constants. CDK sets function names, queue names, table names, etc. to the same values tests expect.
+- **Naming**: Full resource name = constant + environment suffix (e.g. `names.LambdaMyService + "-" + env`). No component-specific env overrides (e.g. `LAMBDA_FUNCTION_X`) are required.
 
-- Always written from the customer's perspective, never the developer's.
-- `@happy` for happy path scenarios, `@negative` for error/edge cases.
-- No "happy" tag in step text — absence of tags is the happy path.
-- Leading tag requirement: API step patterns often require at least one leading tag before the conditioner key so the step regex matches. Use an action or event-type tag in leading position when needed.
+## Component Steps (Lambda, API, SQS, DynamoDB, …)
+
+Each component follows the same pattern:
+
+1. **Raw clients** — The suite creates real clients (AWS SDK Lambda/SQS/DynamoDB, or HTTP client for API) from TestEnvironment. No adapter layer: steps call the client directly.
+
+2. **DataConditioners (or equivalent)** — For each logical resource (e.g. one Lambda, one API surface), a conditioner:
+   - Receives the **full TestEnvironment**.
+   - Exposes **resource name** (or URL) built from shared names + `TestEnvironment.Environment()`.
+   - Provides **step-specific** request data and expected outcomes based on **tags** from the Gherkin step.
+   - Does **not** use a single mixed "conditionData"; each method (Payload, ExpectedResponse, etc.) uses its own loop/switch on tags.
+
+3. **Step definitions** — **Given**: Resolve conditioner from step capture (key), set tags, prepare request. **When**: Call the API (Lambda Invoke, HTTP request, SQS SendMessage, etc.) using the conditioner's resource name and prepared data. **Then**: Assert status and (optionally) response body or side effects using the conditioner's expected values and, if needed, an ExtractAttributes-style parser for the raw response.
+
+4. **ExtractAttributes (where applicable)** — For components that return a body, the conditioner can expose `ExtractAttributes(responseBody)` to turn the raw response into structured data for assertions. Default is a no-op.
+
+## Two Common Paradigms
+
+- **Lambda tests** (`tests/lambda/`): `DataConditioner` — Key(), FunctionName(), Payload(tags), ExpectedResponse(tags), ExtractAttributes(responseBody). Invoked via AWS SDK `Lambda.Invoke` or Function URL request shape.
+- **API tests** (`tests/api/`): `ApiDataConditioner` — Key(), BuildRequest(tags), ExpectedResponse(tags) (status, optional headers, body). Real HTTP requests to API Gateway or Function URL. HTTP client often configured so redirects are not followed for asserting 3xx.
+
+## Tags (conditioner payloads and expectations)
+
+- Tags come from the Gherkin step text and tell the conditioner how to build the request and what to expect. Tags are space-separated; the step implementation trims and splits them.
+- **Default (no tags)** = happy path. Tags only apply deviations.
+- **Missing attributes**: When a scenario requires an attribute to be **missing or empty**, use a tag of the form **`no_<attribute>`** (e.g. `no_campaign`). The conditioner should apply a **minimal mixin**: start from a single base payload and only change that one attribute, rather than building a completely separate payload.
+- **Mixins**: Prefer one base payload plus small, tag-driven changes (wrong header, wrong method, one field cleared, invalid body). Avoid separate "build*" functions per tag when a single base + mixin would do.
+- **Noun-like tags** (e.g. `no_key`, `invalid_apikey`) often in trailing `with <extra_tags>`. **Action tags** (e.g. `preview`, `page_updated`) in leading position. API step regexes often require at least one leading tag before the conditioner key.
+
+## Optional "with <extra_tags>" in Given and Then
+
+Step regexes for **Given** (and **Then**, when they take tags) should support two equivalent forms:
+
+1. **Leading tags**: `Given a <tags> <conditioner_key> lambda request` (e.g. `Given a wrong_secret my_service lambda request`).
+2. **Trailing "with" clause**: `Given a <conditioner_key> lambda request with <extra_tags>` (e.g. `Given a my_service lambda request with wrong_secret`).
+
+The step implementation must treat both the same: combine leading tags and optional "with <extra_tags>" (joined with a space) into a single tags string passed to the conditioner. If both appear, concatenate them. This convention is the standard for all Given/Then steps that accept tags.
 
 ## Lambda Step Patterns
 
@@ -47,21 +84,32 @@ Godog/Cucumber BDD. Entry point is typically `tests/feature_test.go` with `Initi
 - `When I send the api request`
 - `Then there is a <status> api response`
 
-## Feature Flags
+## Feature File Conventions
 
-Every feature gated by a feature flag must have a flag-off scenario returning the appropriate disabled response. Infrastructure-only endpoints (e.g. webhook ingress) without feature flags do not require flag-off scenarios.
+- Always written from the customer's perspective, never the developer's.
+- `@happy` for happy path scenarios, `@negative` for error/edge cases. No "happy" tag in step text — absence of tags is the happy path.
+- Every feature gated by a feature flag must have a flag-off scenario returning the appropriate disabled response. Infrastructure-only endpoints (e.g. webhook ingress) without feature flags do not require flag-off scenarios.
 
-## DataConditioner (Lambda)
+## Suite Wiring (suite.go)
 
-- `Key()`, `FunctionName()`, `Payload(tags)`, `ExpectedResponse(tags)`, `ExtractAttributes(responseBody)`.
-- Function URL conditioners build request structs with version, rawPath, headers, requestContext, body. Response: statusCode, headers, body.
-- One-directional JSON match: every key in expected must exist in actual with matching value; omitted keys are not checked.
+- **BeforeSuite**: Build TestEnvironment, create **raw** clients (Lambda, SQS, DynamoDB, HTTP, …), build conditioners (passing TestEnvironment), create step objects, keep them in package-level or suite-level variables.
+- **InitializeScenario**: Register each component's steps on the Godog scenario context. No component "adapter" type: steps receive the real client and call it in the "When" step.
 
-## ApiDataConditioner (API)
+## Running Tests
 
-- `Key()`, `BuildRequest(tags)`, `ExpectedResponse(tags)` returning status, optional headers, optional body (nil = don't check).
-- HTTP client often configured so redirects are not followed (e.g. `CheckRedirect` returns `http.ErrUseLastResponse`) for asserting 3xx.
+Use the project's command (e.g. `mise run test-features`, or `cd tests && go test -v -run TestFeatures`). Feature tests typically run against a deployed staging environment.
 
-## Execution
+### Environment Variables
 
-Feature tests typically run against a deployed staging environment. Use the project's command (e.g. `mise run test-features`).
+- **Local**: `AWS_PROFILE` (optional) for AWS config; profile must have valid credentials for the account where staging is deployed. `ENVIRONMENT` (optional, default e.g. `staging`) for resource name suffix. Refresh credentials (e.g. `aws sso login`) if you see token errors.
+- **CI**: Set `GITHUB_ACTIONS=true` (or equivalent), plus OIDC/credential env vars and optionally `AWS_REGION`. `ENVIRONMENT` so resource names match the deployed stack. No component-specific overrides required — names are derived from shared constants and ENVIRONMENT.
+
+## Extending to New Components (e.g. SQS, DynamoDB)
+
+1. **Resource names**: Add constants to the shared names module (e.g. queue name, table name).
+2. **Infra**: In CDK, use those constants + environment to set queue names, table names, etc.
+3. **TestEnvironment**: If the component needs extra config (e.g. queue URL), add fields to TestEnvironment and populate them in InitEnvironment using the same naming.
+4. **Step package**: Add e.g. `tests/sqs/` or `tests/dynamodb/` with conditioners that receive TestEnvironment and expose resource name/URL and tag-driven request/expected data; steps that use the **raw** AWS client in the "When" step and assert in the "Then" step.
+5. **Suite**: In BeforeSuite, create the new client and conditioners; in InitializeScenario, register the new steps.
+
+The same principles (shared names, full TestEnvironment, tag-based conditioning, raw clients) keep all components consistent.
