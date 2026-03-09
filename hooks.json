@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "type": "prompt",
+        "prompt": "You are evaluating whether the agent (especially the QA/release skill) should auto-continue or stop.\n\nHook input (JSON):\n$ARGUMENTS\n\nQA skill success means: (1) changes merged to main, and (2) live deployment validated (e.g. post-merge pipeline green, release/tag if applicable).\n\nRespond with JSON only: {\"ok\": true, \"reason\": \"<short reason>\"} OR {\"ok\": false, \"reason\": \"<short reason>\"}.\n\n- Set ok: true (continue) when: the agent stopped before achieving both merged to main and validated live deployment, AND loop_count is less than 3, AND the situation does NOT clearly require external human action (e.g. approval, credentials, user said stop, or a blocker only a human can fix). When continuing, set reason to a brief follow-up instruction, e.g. \"Continue the QA release cycle: get CI green, merge to main, then validate live deployment.\"\n- Set ok: false (do not continue) when: (a) loop_count is already 3 or more (max QA attempts reached), OR (b) the situation clearly needs external action (user must approve, provide credentials, fix something outside the agent, or user asked to stop), OR (c) both merged to main and validated live deployment have been achieved (QA is done).",
+        "timeout": 15,
+        "loop_limit": 3
+      }
+    ]
+  }
+}

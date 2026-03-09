@@ -5,9 +5,10 @@ Centralized Cursor rules, agents, and commands for backend/CDK/Lambda projects. 
 ## Layout
 
 - **rules/** — `.mdc` rule files (git-workflow, verify-first, backend-conventions, cdk-conventions, test-harness, cli-qa-release)
-- **skills/** — Agent skills (e.g. cli-qa-release: full CLI QA and release cycle — RC, verify in consumer, stable release via tag)
+- **skills/** — Agent skills (e.g. cli-qa-release, update-cursor-config)
 - **agents/** — `.md` agent definitions (add-lambda, cli-qa-release, implement-endpoint, refactor, quality-assurance, etc.)
 - **commands/** — `.md` command definitions (commit, pr, cw-logs, check-stacks, flag-toggle, test-feature, gh-logs, slack)
+- **hooks.json** — Cursor hooks config (e.g. stop-hook for QA completion). See [Cursor Hooks](https://cursor.com/docs/hooks). Consuming repos get this when `.cursor` points at this repo; run `git submodule update --remote` to pick up changes.
 
 All content on **main** is generic so it applies across projects. Project-specific content (project-overview.mdc, AGENTS.md, project-only commands) lives on **project branches**.
 
