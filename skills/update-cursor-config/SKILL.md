@@ -10,7 +10,7 @@ Use this skill when adding or changing Cursor configuration that lives in the **
 ## Documentation
 
 - **Cursor Hooks (config, events, prompt/command hooks):** [https://cursor.com/docs/hooks](https://cursor.com/docs/hooks)
-- **cursor-config layout:** See `README.md` in the cursor-config repo (rules/, agents/, skills/, commands/; project-level hooks live in `hooks.json` at repo root when `.cursor` is the submodule).
+- **cursor-config layout:** See `README.md` in the cursor-config repo. Skills live in `skills/` (Agent Skills standard; installable via `npx skills add <org>/cursor-config`). Full config when used as submodule: rules/, agents/, skills/, commands/, and `hooks.json` at repo root.
 
 ## Where config lives
 
