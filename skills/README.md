@@ -17,5 +17,6 @@ Agent skills in this directory follow the [Agent Skills standard](https://agents
 | **prototyping** | Prototype UIs with Cradle (`file:` deps, `VITE_CRADLE`, Playwright `E2E_CRADLE` for virtual vs real API). |
 | **github-actions-oidc-aws** | OIDC to AWS, ECR, ECS render/deploy, CodeDeploy canary inputs. |
 | **launchdarkly-ops** | Flag lifecycle, kill switch env, coordination with deploy canary; complements `/flag-toggle`. |
+| **github-pr-tour** | Lettered **Tour A/B/…** PR comments via `gh` (inline on diff); high-level, concise—streamline review. |
 
 Each skill lives in a folder named after its `name` in SKILL.md and contains at least `SKILL.md`; optional subdirs: `scripts/`, `references/`, `assets/`.
