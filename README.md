@@ -2,6 +2,8 @@
 
 Cursor configuration and **Agent Skills** for backend/CDK/Lambda projects. Compatible with the [Agent Skills standard](https://agentskills.io) and the [skills CLI](https://skills.sh/docs/cli) (e.g. Vercel skills).
 
+**Workspace map:** For an outline of all repos in the Current folder (cursor-config, dante-platform, test-harness, waypoint-framework, waypoint-projects, docs) and what each is used for, see [workspace-repos.md](workspace-repos.md).
+
 ## Two ways to use this repo
 
 ### 1. Install skills only (skills CLI / Agent Skills standard)
@@ -51,6 +53,7 @@ When the repo is used as a submodule at `.cursor`, Cursor loads `.cursor/skills/
 | Skill | Description |
 |-------|-------------|
 | **cli-qa-release** | Full CLI QA and release cycle: publish RCs, verify in consumer, then revert pins, bump version, commit, push, tag; GitHub Actions publishes to npm. Use when changing or validating CLI functionality or when releasing the CLI. |
+| **devops-secrets-auth** | Authenticate with GitHub, npm, Figma, and other tools using the AWS Secrets Manager `devops` secret. Use when you need tokens for `gh`, npm publish, Figma API, or other devops-backed services. |
 | **update-cursor-config** | Update Cursor configuration (rules, agents, hooks, skills, commands). Use when changing cursor-config content, adding hooks, or propagating config to consuming repos. Requires consuming repos to update their cursor-config submodule. |
 
 ## Branch model
