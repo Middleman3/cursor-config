@@ -1,12 +1,17 @@
 # cursor-config
 
-Cursor configuration and **Agent Skills** for backend/CDK/Lambda projects. Compatible with the [Agent Skills standard](https://agentskills.io) and the [skills CLI](https://skills.sh/docs/cli) (e.g. Vercel skills).
+Shared **Agent Skills** and Cursor **hooks** for backend/CDK/Lambda-style projects. Layout matches the [open agent skills](https://agentskills.io) ecosystem and the **[skills CLI](https://github.com/vercel-labs/skills)** (`npx skills add`).
 
-## Two ways to use this repo
+## Layout
 
-### 1. Install skills only (skills CLI / Agent Skills standard)
+| Path | Purpose |
+|------|---------|
+| **`skills/<name>/SKILL.md`** | All agent instructions: conventions (formerly project rules), workflows (formerly agents), and slash-command playbooks (formerly commands). Each file has YAML frontmatter with `name` and `description`. |
+| **`hooks.json`** | Cursor hooks (e.g. stop-hook for QA). Loaded when this repo is the `.cursor` submodule. |
 
-Install skills into your project with the standard CLI. Skills are discovered from the **`skills/`** directory.
+There are no separate `rules/`, `agents/`, or `commands/` directories—everything installable and discoverable lives under **`skills/`**, per the [skills CLI discovery paths](https://github.com/vercel-labs/skills).
+
+## Install skills (skills CLI)
 
 ```bash
 # From GitHub (replace <org> with your org)
@@ -16,53 +21,40 @@ npx skills add <org>/cursor-config
 npx skills add <org>/cursor-config --list
 
 # Install specific skills
-npx skills add <org>/cursor-config --skill cli-qa-release --skill update-cursor-config
+npx skills add <org>/cursor-config --skill cli-qa-release --skill git-workflow
 
-# From a local path
+# From a local clone
 npx skills add ./path/to/cursor-config
 ```
 
-The CLI installs into your agent’s skill directory (e.g. for Cursor: `.agents/skills/` at project scope, or `~/.cursor/skills/` globally with `-g`). Only the contents of **`skills/`** are used; rules, agents, and commands in this repo are not installed by the CLI.
+The CLI installs into the target agent’s skill directory (for Cursor: project `.agents/skills/` or global `~/.cursor/skills/` with `-g`). See the [skills CLI README](https://github.com/vercel-labs/skills) for `--agent`, `--skill`, and `--copy` options.
 
-### 2. Full Cursor config (submodule)
+## Full Cursor setup (git submodule)
 
-Use this repo as a **git submodule** at **`.cursor`** so Cursor discovers rules, agents, commands, hooks, and skills from one place.
+Use this repo as a **git submodule** at **`.cursor`** so the project gets **`skills/`** and **`hooks.json`** in one place.
 
 ```bash
 git submodule add -b <branch> https://github.com/<org>/cursor-config.git .cursor
 ```
 
-After cloning a repo that uses this submodule: `git submodule update --init --remote`
+After clone: `git submodule update --init --remote`
 
-## Layout
+Cursor loads agent skills from `.cursor/skills/` and hooks from `.cursor/hooks.json` when the submodule is present.
 
-| Path | Purpose | Used by |
-|------|---------|--------|
-| **skills/** | Agent skills (each `*/SKILL.md` with `name` + `description` frontmatter). [Standard locations](https://cursor.com/docs/skills) for Cursor: `.cursor/skills/`, `.agents/skills/`. | skills CLI, Cursor (submodule) |
-| **rules/** | `.mdc` rule files (git-workflow, verify-first, backend-conventions, cdk-conventions, test-harness, cli-qa-release) | Cursor only (submodule) |
-| **agents/** | `.md` agent definitions (add-lambda, implement-endpoint, refactor, quality-assurance, etc.) | Cursor only (submodule) |
-| **commands/** | `.md` command definitions (commit, pr, cw-logs, check-stacks, flag-toggle, test-feature, gh-logs, slack) | Cursor only (submodule) |
-| **hooks.json** | Cursor hooks config (e.g. stop-hook for QA). See [Cursor Hooks](https://cursor.com/docs/hooks). | Cursor only (submodule) |
+### Submodule vs always-on rules
 
-When the repo is used as a submodule at `.cursor`, Cursor loads `.cursor/skills/`, `.cursor/rules/`, `.cursor/agents/`, `.cursor/commands/`, and `.cursor/hooks.json` from the project root.
+Previously, `.mdc` files under `rules/` were **project rules** (often always applied). Those instructions now live as **skills** (on-demand). Repos that relied on automatic rule application can add local **Project Rules** or **`AGENTS.md`** that point at the most important skill names, or pin a small set of rules in the consuming repo only.
 
-### Skills (installable via CLI or submodule)
+## Index
 
-| Skill | Description |
-|-------|-------------|
-| **cli-qa-release** | Full CLI QA and release cycle: publish RCs, verify in consumer, then revert pins, bump version, commit, push, tag; GitHub Actions publishes to npm. Use when changing or validating CLI functionality or when releasing the CLI. |
-| **update-cursor-config** | Update Cursor configuration (rules, agents, hooks, skills, commands). Use when changing cursor-config content, adding hooks, or propagating config to consuming repos. Requires consuming repos to update their cursor-config submodule. |
+See [skills/README.md](skills/README.md) for a table of all skills.
 
 ## Branch model
 
-- **main** — Generic rules, agents, commands, and skills. One source of truth.
-- **Project branches** (e.g. `marketing-workflow-tools`, `dante-platform`) — Branch from main; add only:
-  - `rules/project-overview.mdc`
-  - `AGENTS.md`
-  - Optional project-only commands
+- **main** — Generic skills and hooks. One source of truth.
+- **Project branches** (e.g. `marketing-workflow-tools`, `dante-platform`) — Branch from `main`; add only project-specific skills (e.g. `skills/project-overview/SKILL.md`) and optional `AGENTS.md` on that branch.
 
 ## Maintenance
 
-- **Change a skill:** Edit under `skills/<name>/SKILL.md`. For submodule users: commit and push cursor-config, then in each consuming repo run `git submodule update --remote`. For CLI users: they can run `npx skills update` to pull latest.
-- **Change a rule/agent/command:** Edit on `main`. Merge `main` into project branches; in consuming repos run `git submodule update --remote`.
-- **Change project-only content:** Edit on that project’s branch only.
+- **Change a skill:** Edit `skills/<name>/SKILL.md`. Submodule users: commit and push cursor-config, then in each consuming repo `git submodule update --remote` and commit the new submodule ref. CLI users: `npx skills update`.
+- **Change hooks:** Edit `hooks.json`; propagate the same submodule update flow.

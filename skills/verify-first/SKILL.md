@@ -1,0 +1,13 @@
+---
+name: verify-first
+description: Verify before suggesting, use mise for tools, build after changes
+---
+
+# Verify First
+
+- Verify commands will work before telling the user to run them.
+- When changing or validating a **CLI consumed elsewhere**: use the **cli-qa-release** subagent for the full QA and release cycle; do not stop at "publish an RC."
+- Use `mise` when adding CLI tools the project needs (add to `[tools]` in `.mise.toml`).
+- After substantive code changes: run the project's build (e.g. `go build ./...`) to catch compile errors early.
+- After infrastructure changes: run the project's synth command (e.g. `mise run synth` or `mise run synth:staging`) to verify CDK templates.
+- Before committing: run the project's lint fix (e.g. `mise run lint:fix`) to catch and autofix linter issues.

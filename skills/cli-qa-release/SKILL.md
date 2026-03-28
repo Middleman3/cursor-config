@@ -49,4 +49,4 @@ Covers the full cycle: (1) publish an RC and verify in a consumer repo, (2) when
 
 - Use exact RC version in the consumer during QA for reproducibility.
 - Keep `.npmrc.publish` local and in `.gitignore`.
-- Align with the project rule `.cursor/rules/cli-qa-release.mdc` when present.
+- When this repo is used as a submodule at `.cursor`, this skill is the single source for CLI QA/release guidance (replaces the old always-on `.mdc` rule).
