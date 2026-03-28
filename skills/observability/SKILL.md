@@ -1,90 +1,58 @@
 ---
 name: observability
-description: Create and verify observability changes — structured logging, CloudWatch Logs Insights queries, and the observability CDK stack. Use when adding logging to new services, updating log queries, or verifying log output.
+description: Add or change structured logging, log queries, and infra for observability (e.g. CloudWatch). Adapt paths and logger APIs to your stack.
 ---
 
 # Observability
 
-You are the observability subagent. You create or update structured logging and CloudWatch Logs Insights queries, then verify the full pipeline from Lambda invocation through to query results.
+You improve **structured logging**, **log exploration** (e.g. CloudWatch Logs Insights), and any **IaC** that registers log groups or saved queries. The steps below use an **example stack**: AWS Lambda, Go `slog` JSON to stdout, CloudWatch, and CDK—**map** each step to your language, logger, and repo layout.
 
-## Architecture
+## Example architecture (reference)
 
-Structured logs flow through:
-`Lambda handler → slog (JSON to stdout) → CloudWatch Logs → Logs Insights saved queries`
+A common pattern:
 
-The logging layer has two categories of slog attributes:
-- **AOP (aspect-oriented)**: Injected by middleware/context automatically (`request_id`, `lambda_request_id`, `endpoint`, `trace_id`, `span_id`). These appear as top-level JSON fields and as Logs Insights display columns.
-- **Handler-added**: Set in handler code (e.g. `handler`, `event`, `repoPath`). These appear as JSON fields AND get inlined into the `msg` field as `msg (key: val, key: val)` for human readability — only string values within a strict character limit qualify for inlining.
+`Service → structured logs (JSON) → CloudWatch Logs → saved queries / dashboards`
 
-The observability CDK stack (`infra/stacks/observability/`) is environment-agnostic: it defines Logs Insights saved queries that reference per-environment log groups.
+**Illustrative attribute types** (names vary by project):
 
-## Adding Logging to a New Lambda
+- **Request context** — request IDs, trace IDs, route identifiers (often from middleware).
+- **Business fields** — set in handlers; may be duplicated into a human-readable `msg` line depending on logger design.
 
-1. **Service Lambdas (HTTP via API Gateway)**
-   - In the Lambda handler wrapper: inject request ID and traceparent via `logger.WithLambdaRequest(ctx, apiGwRequestID, headers)` and `logger.WithLambdaRequestID(ctx, lambdaRequestID)`
-   - Wrap the HTTP handler with `logger.ContextMiddleware(mux)` BEFORE auth middleware — this adds `endpoint` (with HTTP method, e.g. `POST /inference`) and extracts `traceparent`
-   - In handlers: use `logger.FromContext(r.Context()).Info("msg", "key", "val")`
+**IaC** might live under paths like `infra/stacks/observability/` (example); your repo may use `terraform/`, `cdk/`, etc.
 
-2. **Event handler Lambdas (SQS consumers)**
-   - Extract `requestID` from `lambdacontext.FromContext(ctx)`
-   - Inject via `logger.WithRequestID(ctx, requestID)`
-   - Use `logger.FromContext(ctx).Info("msg", "key", "val")`
+## Adding logging to a new service
 
-3. **Register the log group** in the observability stack
-   - Add `/aws/lambda/<function-name-staging>` to the staging log groups slice
-   - Add `/aws/lambda/<function-name-live>` to the live log groups slice
+1. **HTTP handlers** — Ensure request-scoped IDs and tracing headers are attached **before** business logic; log with the project’s logger API.
+2. **Workers / queue consumers** — Propagate invocation/request IDs from the runtime into the logger context.
+3. **Register log groups** in observability IaC if the project maintains an explicit list (staging vs production groups, etc.).
 
-## Adding or Updating Logs Insights Queries
+Use the **existing** `internal/logger` (or equivalent) package in the repo as the template—do not invent a second logging style.
 
-- Queries live in `infra/stacks/observability/stack.go` as Go string constants
-- Use CloudWatch's automatic JSON field discovery — do NOT add `parse` commands for JSON-formatted logs
-- Filter Lambda runtime noise (INIT_START, START, END, REPORT) with `filter ispresent(request_id)` rather than pattern-matching on message text
-- Include commented-out filter templates (`#| filter field = "value"`) ordered broadest-to-most-specific: `level`, `endpoint`, `handler`, `request_id`, `lambda_request_id`, `msg like`
-- Sort `@timestamp asc` (oldest first) — use time range and filters to scope, not sort direction
-- Display `msg` (the enriched message) rather than `@message` — this gives the human-readable summary with inlined attrs
+## Log queries (e.g. CloudWatch Logs Insights)
 
-## Updating the Shared Logger
+- Prefer **automatic JSON field discovery** where the platform supports it; avoid redundant `parse` that duplicates fields.
+- Filter runtime noise (cold start lines, etc.) with field presence filters when possible.
+- Sort by time ascending for incident timelines unless the team standard differs.
+- Prefer enriched **message** fields if your logger emits them for human scanability.
 
-When modifying `internal/logger/`:
-- New AOP keys must be added to the `aopKeys` set in `handler.go` to prevent them from being inlined into `msg`
-- New context keys need: context key var, `With*` setter, getter function (in `context.go`), and a corresponding block in `FromContext` (in `logger.go`)
-- The `enrichHandler` wraps the JSON handler — record-level attrs (from `.Info("msg", k, v)` calls) that are non-AOP, string-typed, and within `maxInlineValueLen` get appended to `msg`
-- AOP attrs are injected via `.With()` in `FromContext` so they are NOT in the record and cannot be accidentally inlined
+## Changing the shared logger package
 
-## Verification (Required)
+When editing the project’s logger module (example path `internal/logger/`):
 
-After any observability change, verify the full pipeline:
+- Keep **context keys**, **setters**, and **enrichment rules** consistent; follow existing patterns for what gets inlined vs structured-only.
+- Run unit tests and a quick local smoke log line if the project has them.
 
-### Step 1: Deploy
-- Deploy the application stack: the project's staging deploy command (e.g. `mise run deploy:staging`)
-- Deploy the observability stack: the project's observability deploy command (e.g. `mise run deploy:observability`)
+## Verification (required after material changes)
 
-### Step 2: Invoke Lambdas directly
-- Use `aws lambda invoke --function-name <name> --payload '{}' --cli-binary-format raw-in-base64-out /tmp/out.json` for each Lambda
-- This validates the logging layer works in isolation
+1. **Deploy** app and observability stacks per project commands (examples: `mise run deploy:staging`, `mise run deploy:observability`—use what exists).
+2. **Invoke** the service (direct invoke, HTTP, or queue) and confirm logs show expected fields.
+3. **Raw log tail** — e.g. `aws logs filter-log-events --log-group-name <group> --start-time …` (adjust region and auth).
+4. **Integration path** — exercise the real entrypoint (API with trace headers if applicable).
+5. **Saved query or ad-hoc Insights query** — allow for CloudWatch ingestion delay (often tens of seconds).
 
-### Step 3: Check raw logs
-- Use `aws logs filter-log-events --log-group-name /aws/lambda/<name> --start-time <epoch-ms> --limit 10` to inspect actual JSON output
-- Verify: AOP fields present at top level, handler attrs present, `msg` field contains enriched message with inlined attrs, no `!BADKEY` artifacts
+### Common pitfalls (generic)
 
-### Step 4: Invoke via HTTP API (integration test)
-- Hit each endpoint through API Gateway with a `traceparent` header to validate the full middleware chain
-- Verify: `endpoint` includes HTTP method, `trace_id` and `span_id` populated from traceparent, `lambda_request_id` present alongside `request_id`
-
-### Step 5: Run the Logs Insights query
-- CloudWatch Logs Insights has an ingestion delay (typically 15–60 seconds). Wait, then retry with a wider time window if needed
-- Use the project's saved query or run ad-hoc:
-  ```bash
-  aws logs start-query \
-    --log-group-names "/aws/lambda/<fn1>" "/aws/lambda/<fn2>" \
-    --start-time <epoch> --end-time <epoch> \
-    --query-string '<query>'
-  ```
-- Wait for results: `aws logs get-query-results --query-id <id>`
-- Verify: Lambda runtime noise is filtered out, `msg` shows enriched messages, display columns match the saved query definition
-
-### Common Pitfalls
-- `!BADKEY` in logs: passing `[]slog.Attr` as a single arg to `slog.Logger.With()` — must convert to `[]any` and spread
-- `MalformedQueryException: Ephemeral field already defined`: do not use `parse` for fields that CloudWatch auto-discovers from JSON
-- 0 results from Insights: CloudWatch ingestion lag — wait 15–60s, widen the time window, verify logs exist via `filter-log-events` first
-- Missing log groups: Lambda log groups are created on first invocation — invoke each Lambda at least once before querying
+- Mismatched **context** API usage producing malformed attributes.
+- **Duplicate field** errors in query languages when mixing `parse` with auto-detected JSON.
+- **Empty query results** due to ingestion lag—widen time range and confirm raw logs first.
+- **Missing log groups** until first invocation creates the group.

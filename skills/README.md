@@ -35,5 +35,5 @@ Optional subdirectories per skill: `scripts/`, `references/`, `assets/`.
 | **test-feature** | Deploy to staging and run feature tests |
 | **test-harness** | Test harness architecture and conventions — Godog/Cucumber BDD, Lambda and API paradigms, feature files, tags, TestEnvironment, resource names, extending components |
 | **test-specialist** | Expert in the Godog/Cucumber test harness. Creates and debugs feature tests, data conditioners, and API/Lambda step definitions with comprehensive scenario coverage. Use when writing or debugging tests, creating data conditioners, or designing feature test scenarios. |
-| **update-cursor-config** | Update Cursor configuration (hooks and skills in cursor-config). Use when changing cursor-config content, adding hooks, or propagating config to consuming repos. Requires consuming repos to update their cursor-config submodule. |
+| **update-skills** | Update a shared Agent Skills repo and Cursor hooks; propagate submodule updates to consuming apps. Use when editing team skills or hooks. |
 | **verify-first** | Verify before suggesting, use mise for tools, build after changes |

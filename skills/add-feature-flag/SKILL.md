@@ -1,27 +1,26 @@
 ---
 name: add-feature-flag
-description: Create a feature flag, wire it into the handler as a precondition, and add flag-off test scenarios. Use when adding a new feature that needs a feature flag, or when gating existing functionality behind a flag.
+description: Create a feature flag, wire it as a precondition in code, and add tests for disabled behavior. Use when gating new functionality behind a flag.
 ---
 
 # Add Feature Flag
 
-You are the feature flag lifecycle subagent. You create and wire feature flags (e.g. LaunchDarkly) per the project's tooling.
+You implement **feature flag lifecycle** in line with the project’s provider and conventions (LaunchDarkly, split.io, in-house, etc.).
 
 ## Workflow
 
-1. **Choose flag key**: kebab-case matching the feature name (e.g. `creative-preview`)
+1. **Choose a flag key** — kebab-case matching the feature (example: `invoice-preview-export`).
 
-2. **Create via the project's CLI** (e.g. `mise run flag:create <key> "<flag name>"`)
+2. **Create the flag** using the project’s tooling (example: `mise run flag:create <key> "<human-readable name>"` — replace with actual scripts).
 
-3. **Add flag key constant** to the project's names/resource module
+3. **Add a stable identifier in code** — constant or config key used by handlers and tests.
 
-4. **Wire into handler**:
-   - Add a flag check as precondition; when off, return 404 or appropriate disabled response. Use the project's SDK (e.g. `featureflags.BoolVariation(flagKey, contextKey, false)`).
+4. **Wire the handler or service** — evaluate the flag before executing gated behavior; when off, return the documented response (404, 403, empty payload, etc.) per product requirements.
 
-5. **Add flag-off test scenario**:
-   - In the feature file: @negative scenario with `with flag_off` (or the project's tag)
-   - In the data conditioner: handle flag_off tag returning expected disabled response
+5. **Add tests for “flag off”** — negative or separate scenarios so the disabled path is covered (tags and structure depend on the test framework).
 
-6. **Ensure the DataConditioner** iterates over flag states as preconditions where applicable
+6. **Conditioners / fixtures** — if the project uses data conditioners or test doubles, mirror flag state there.
 
-7. **Verify flag exists** (e.g. `mise exec -- ldcli flags get --project default --flag <key> --output json`)
+7. **Verify in the provider** — e.g. `ldcli flags get --project <project> --flag <key>` or the vendor UI.
+
+**Example only:** A concrete repo might use `mise exec -- ldcli …` and `featureflags.BoolVariation(...)` in Go; translate to your language, SDK, and CLI.

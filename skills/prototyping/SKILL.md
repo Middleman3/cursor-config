@@ -53,5 +53,5 @@ After flows, export traces → `cradle-export-spec traces.json --out <artifacts-
 
 ## References
 
-- Full detail: `waypoint-framework/software-workflow` → `cradle/README.md`.
-- Submodule propagation: [update-cursor-config](../update-cursor-config/SKILL.md).
+- Full detail: see your repo’s Cradle package (example layout: `cradle/README.md` next to the workflow that owns the BFF).
+- Submodule propagation: [update-skills](../update-skills/SKILL.md).

@@ -1,14 +1,14 @@
 ---
 name: slack
-description: Send a message to Slack via Incoming Webhook (when the project has a notify command)
+description: Send a message to Slack using the project’s configured notifier (webhook, CLI, or script)
 ---
 
 # /slack
 
-1. Accept the message content from the user (or compose it from context if asked to "notify about X")
-2. Format links as Slack mrkdwn: `<url|display text>`
-3. Send via the project's notify command if available (e.g. `mise run notify:slack "<message>"`)
-4. Confirm delivery (check response code)
-5. Common presets (when the project supports them):
-   - "notify deployment" — compose a deployment message with current PR, version tag, flag state, and release link
-   - "notify release" — compose a release message with version, changelog entry, and flag toggle instructions
+1. Accept the message from the user (or compose it from context if asked to "notify about X").
+2. Format links as Slack mrkdwn: `<url|display text>`.
+3. Send using **this project’s** notification mechanism (examples: `mise run notify:slack "<message>"`, a `Makefile` target, or a small script referenced in `package.json`). If none exists, say so and offer to paste the message for manual send.
+4. Confirm delivery when the API returns success.
+5. **Presets** (when the project supports them):
+   - **Deployment** — PR link, version tag, environment, feature-flag state, release link.
+   - **Release** — version, changelog snippet, link to toggle flags or continue rollout.
